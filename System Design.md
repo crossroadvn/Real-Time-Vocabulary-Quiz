@@ -1,6 +1,6 @@
 # Real‑Time Vocabulary Quiz — System Design
 
-> **Purpose:** Design a scalable, reliable real‑time quiz feature that meets the acceptance criteria (multi-user join by quiz ID, accurate real‑time scoring, live leaderboard). This document is Part 1 of the challenge deliverable and includes an architecture diagram (text), component descriptions, data flow, technology choices, AI collaboration notes for the design phase, and considerations (scalability, reliability, monitoring, security, trade-offs).
+> **Purpose:** Design a scalable, reliable real‑time quiz feature that meets the acceptance criteria (multi-user join by quiz ID, accurate real‑time scoring, live leaderboard). This document is version 1.0 of the challenge deliverable and includes an architecture diagram (text), component descriptions, data flow, technology choices, AI collaboration notes for the design phase, and considerations (scalability, reliability, monitoring, security, trade-offs).
 
 ---
 
@@ -127,52 +127,104 @@ Below shows the typical flow from join → answer → leaderboard update.
 
 ---
 
-## 4. Technologies & Tools (recommended stack + justification)
+## 4. Technologies & Tools (Recommended Stack + Justification)
 
-### Real‑time Transport
+### Recommended Tech Stack Overview
 
-* **WebSocket** (primary). Use Socket.IO for easy reconnection and fallbacks, or `uWebSockets.js`/`ws` for lower latency and resource usage.
+| Layer                              | Core Technology Stack                                |
+| ---------------------------------- | ---------------------------------------------------- |
+| **Frontend**                       | React + Vite + Tailwind + Socket.IO Client           |
+| **Backend**                        | Node.js + NestJS + Socket.IO + Redis                 |
+| **Database**                       | PostgreSQL + Prisma ORM                              |
+| **Cache & Real-Time**              | Redis (Sorted Sets + Pub/Sub)                        |
+| **Auth**                           | JWT / Auth.js                                        |
+| **Infra / Deployment**             | Docker + Nginx + Kubernetes / Render / Fly.io        |
+| **Observability**                  | Sentry + Grafana + Prometheus                        |
+| **Testing**                        | Vitest (frontend) + Jest / Supertest (backend)       |
+| **AI Tooling (for collaboration)** | ChatGPT + Cursor AI                                  |
 
-  * *Why:* low latency, bi‑directional. Socket.IO gives convenience features (rooms, reconnection, acknowledgements) which speed development.
+---
+
+### Real-time Transport
+- **Primary:** **WebSocket** implemented with **Socket.IO** (rooms, acknowledgements, auto-reconnect).
+- **Alternatives:** `uWebSockets.js` or `ws` for lower-level, ultra-low-latency needs.
+
+**Why:** low-latency, bi-directional comms are required for instant score/leaderboard updates; Socket.IO speeds development and improves reliability.
+
+---
 
 ### Server Language / Framework
+- **Node.js + TypeScript** with **NestJS** (or Express + Socket.IO).
+- **Alternatives:** Go (high concurrency) or Elixir/Phoenix (massive concurrency & channels).
 
-* **TypeScript + Node.js** (Express + Socket.IO) — fast iteration, large ecosystem, easy to hire.
-* Alternatives: **Go** for high concurrency & CPU efficiency; **Elixir** (Phoenix) for massive concurrency and built‑in channels.
+**Why:** TypeScript + NestJS gives modular structure, DI, type safety and fast iteration for teams; Socket.IO integrates smoothly.
+
+---
 
 ### Ephemeral State & Pub/Sub
+- **Redis (Cluster)** for:
+  - **Pub/Sub** to broadcast score events across instances.
+  - **Sorted Sets (ZSETs)** to maintain live leaderboards.
 
-* **Redis (Cluster)** — store live leaderboards in sorted sets; use Redis Pub/Sub or Redis Streams to broadcast score updates across instances.
+**Why:** sub-millisecond ops, native ZSETs for ranking, and straightforward pub/sub semantics for multi-instance sync.
 
-  * *Why:* Extremely low latency, built‑in data types (sorted sets) map well to leaderboards.
+---
 
 ### Persistent Storage
+- **PostgreSQL** with **Prisma ORM** for:
+  - Users, quizzes, question bank, session history, audit logs.
 
-* **PostgreSQL** — robust relational DB for users, quizzes, audit/history.
+**Why:** reliable ACID storage, JSONB for flexible fields, strong tooling and type-safe DB access via Prisma.
 
-### Orchestration / Infra
+---
 
-* **Kubernetes** for orchestration; **Helm** charts; **NGINX / Traefik** as ingress; cloud autoscaling groups.
-* Use **managed Redis** & **managed Postgres** for production ease.
+### Authentication
+- **JWT** for microservices + optional **Auth.js** (or comparable) for identity flows.
 
-### Observability
+**Why:** stateless, simple token verification inside real-time events and microservices without central session lookup.
 
-* **Prometheus + Grafana** for metrics & dashboards.
-* **Loki / ELK** for logs.
-* **Sentry** for error monitoring.
-* **Jaeger** for traces.
+---
+
+### Infrastructure & Deployment
+- **Local dev:** Docker Compose for reproducible local stacks.
+- **Production:** Kubernetes (Helm) or managed platforms (Render / Fly.io). **Nginx / Traefik** as ingress.
+
+**Why:** containers standardize dev/prod environments; K8s provides autoscaling and resilience at scale.
+
+---
+
+### Observability & Monitoring
+- **Metrics:** Prometheus + Grafana  
+- **Errors:** Sentry  
+- **Logs:** Loki / ELK  
+- **Tracing:** Jaeger
+
+**Why:** full-stack observability to diagnose latency, correctness, and reliability issues in real time.
+
+---
 
 ### CI/CD & IaC
+- **CI:** GitHub Actions  
+- **IaC:** Terraform  
+- **Builds:** Docker
 
-* **GitHub Actions** for CI; **Terraform** for IaC; **Docker** for containerization.
+**Why:** automated tests, reproducible infra provisioning, and containerized deployments.
 
-### Load Testing
+---
 
-* **k6** or **Locust** for load testing WebSocket endpoints and scoring under concurrency.
+### Load Testing & Scalability Verification
+- **Tools:** k6 or Locust for simulating concurrent WebSocket clients and measuring submit→update latency.
+
+**Why:** validates end-to-end behavior (scoring + Redis updates + leaderboard broadcasts) under realistic load.
+
+---
 
 ### Security
+- **Auth:** OAuth2 / JWT  
+- **Transport:** TLS termination at LB  
+- **Hardening:** rate limiting, input validation, server-authoritative scoring, anti-cheat heuristics
 
-* **OAuth2 / JWT** for auth; TLS termination at LB; rate limiting; input validation; anti‑cheat server logic.
+**Why:** protect data in transit, prevent abuse, and ensure fairness and integrity of scoring.
 
 ---
 
@@ -267,83 +319,175 @@ Create Grafana dashboards and alerts for:
 
 ---
 
-## 11. AI Collaboration in Design (required section)
+## 11. AI Collaboration in Design (Required Section)
 
-Because this challenge explicitly requires collaboration with Generative AI tools, this section documents recommended and demonstrable ways to involve GenAI **during the design phase**. Use this as a template you can include in your submission. Be explicit in your record: which tool you used, what task you asked it to help with, and how you verified the AI output.
-
-### Suggested AI tools & tasks for design
-
-1. **ChatGPT / Claude / Bard**
-
-   * Task: Brainstorm architecture alternatives, compare stacks (Node.js vs Go vs Elixir), generate example sequence diagrams and API event names.
-   * Example prompt: `"I'm designing a real‑time quiz system. Compare the pros/cons of using Socket.IO vs Phoenix Channels for 100k concurrent users. Give design patterns for leaderboards and Redis usage."`
-   * *How to verify:* Cross‑check with official docs for each framework (Socket.IO, Phoenix), run small prototype load tests, and consult community benchmarks.
-
-2. **GitHub Copilot / GitHub Copilot Chat**
-
-   * Task: Generate initial boilerplate code (WebSocket server skeleton, Redis helpers), propose tests and CI configs.
-   * Example prompt (inline): `// Copilot: create a Socket.IO server in TypeScript that accepts join and submitAnswer events and updates Redis leaderboard`.
-   * *How to verify:* Manually review the generated code, write unit tests for scoring logic, run integration tests connecting a mock client, and run `npm audit`.
-
-3. **Diagram/Design tools (ex: Diagrams.net assisted by AI prompts, or Mermaid via ChatGPT)**
-
-   * Task: Generate an architecture diagram from a textual prompt.
-   * *How to verify:* Ensure diagram matches the chosen infra and update for any customizations.
-
-4. **AI for docs (e.g., ChatGPT, Claude)**
-
-   * Task: Draft the System Design doc and the AI Collaboration statements (this file can be the result).
-   * *How to verify:* Human review and edits, ensure accuracy of technical claims, and include citations or links to vendor docs.
-
-### Example record (what to include in your final submission)
-
-For each significant AI‑assisted deliverable, document the following:
-
-* **Tool used** (e.g., ChatGPT-4o; GitHub Copilot) and timestamp.
-* **Task description**: e.g., `Generated Redis-based leaderboard pseudocode`.
-* **Prompt(s)** used (copy/paste the prompt you sent to the AI). Example:
-
-  ```text
-  "Generate TypeScript code for a WebSocket server using Socket.IO that accepts 'join' and 'submitAnswer' events. Use Redis to keep a sorted set leaderboard for sessionId. Implement server-side scoring with time bonus. Include comments where AI helped."
-  ```
-* **What the AI produced**: include brief summary (not necessarily full code) and mark which parts are AI‑generated in your code with comments like `// AI‑ASSISTED: generated by Copilot`.
-* **Verification steps you performed** (critical):
-
-  * Manual code review for security issues (no unsanitized eval, proper auth checks).
-  * Unit tests for scoring functions (cover normal and edge cases).
-  * Integration tests: run server locally, connect 50–200 simulated clients (k6/locust) to ensure leaderboard correctness and measure latency.
-  * Static analysis and linting (ESLint, TypeScript strict mode).
-  * Dependency checks (`npm audit`, `snyk` optional).
-  * Code review with a human peer if available.
-
-### Example of how to mark AI‑assisted code in the repo
-
-* Add comments in code where AI contributed significantly: `// AI‑ASSISTED (ChatGPT): initial WebSocket handling boilerplate`.
-* Add a `AI_CONTRIBUTION.md` in repository root summarizing tools, prompts, outputs, and verification steps.
+Because this challenge **explicitly requires collaboration with Generative AI tools**, this section documents how AI tools were strategically used during the **System Design phase**.  
+It demonstrates responsible integration of AI into the design workflow — from brainstorming and documentation to code scaffolding.
 
 ---
 
-## 12. Next Steps / Suggested plan for Part 2 (Implementation)
+### Tools Used & Roles
 
-**Recommended component to implement first:** *Real‑time server (Socket.IO, TypeScript) with Redis-backed leaderboard.*
+| Tool | Purpose | Example Tasks | Verification |
+|------|----------|---------------|--------------|
+| **ChatGPT (GPT-5)** | Brainstorm and co-design system architecture. | Prompted with: *“Based on below challenge requirements, collaborate with me to fulfill ‘Part 1: System Design’.”* Helped draft architecture diagrams (Mermaid), data flow explanation, Redis usage, and database schema. | Human validation of each architectural element vs. requirements and scalability constraints. Cross-checked Redis and WebSocket integration with official docs. |
+| **ChatGPT (Mermaid Integration)** | Auto-generate visual architecture diagrams and sequence flows. | Created system architecture and component diagrams (server ↔ client ↔ Redis ↔ DB). | Reviewed diagram for correctness, verified all arrows and communication channels match actual design decisions. |
+| **Cursor AI** | Code scaffolding and live AI pair-programming. | Generated starter monorepo structure (frontend, real-time server, scoring engine, leaderboard service) and Docker Compose boilerplate. | Verified generated code builds locally; reviewed each scaffolded file; ensured imports, type definitions, and service ports align with architecture. |
+| **ChatGPT (Docs Mode)** | Drafted structured design documentation. | Produced “System Overview,” “Data Flow,” and “Technologies & Tools” sections in Markdown format. | Edited for clarity, ensured claims were technically correct, and all stack choices (React, NestJS, Redis) aligned with project feasibility. |
 
-**Reason:** It is the critical, most interesting part: handles connections, scoring, and immediate leaderboards. Other parts (HTTP API, DB) can be mocked.
+---
 
-**Minimum viable implementation scope for Part 2:**
+### Example Prompts Used
 
-* Implement a WebSocket server that:
+**Primary brainstorming prompt:**
+```text
+Based on below challenge requirements, collaborate with me to fulfill 'Part 1: System Design' :
+```
 
-  * Accepts `join(sessionId, token)` event and authorizes the user (mock auth for demo).
-  * Accepts `submitAnswer` event, calculates score, updates Redis sorted set, and emits `scoreUpdate` to the session room.
-  * Emits `leaderboard` snapshot on demand or when top N changes.
-* Provide a small static HTML client (or simple CLI script) to demonstrate multiple clients connecting and receiving updates.
-* Document AI assistance inline in the code and `AI_CONTRIBUTION.md`.
+**Diagram generation prompt:**
 
-**Deliverables to prepare for Part 2**
+```text
+Generate a Mermaid system architecture diagram showing Client Web (React), Real-time Server (NestJS + Socket.IO), Redis Pub/Sub, Leaderboard Service, and PostgreSQL.
+```
 
-* A reproducible README with `docker-compose` or local run steps.
-* Unit tests for scoring logic and integration test harness (k6 script or node script that simulates multiple clients).
+**Cursor AI code scaffold prompt:**
 
+```text
+Scaffold a monorepo for a real-time quiz app with: 
+  - frontend (React + Vite)
+  - backend (NestJS + Socket.IO)
+  - leaderboard microservice 
+Include Docker Compose and README. Add comments marking AI-ASSISTED sections.
+```
+
+### Verification, Debugging, and Refinement (Crucially Required)
+
+Examples of steps:
+
+- Reviewed the generated code from Cursor using my own experience, then guided it to adjust logic or structure.
+
+- Ran the generated project locally; when encountering errors, copied the full error stack into Cursor’s “Ask” panel to request specific fixes.
+
+- Retested after each correction to confirm the issue was resolved.
+
+- Reviewed UI behavior and design alignment; provided prompts to adjust layout, spacing, and component structure.
+
+- Compared AI-suggested code with official framework documentation (React, NestJS, Redis) for compliance and correctness.
+
+- Added linting, TypeScript strict checks, and integration tests to verify runtime stability.
+
+---
+
+## 12. Database Design
+
+The database is implemented using **PostgreSQL** with **Prisma ORM** for schema management and type-safe access.  
+It follows a relational model with clear normalization to support scalability, analytics, and auditability.  
+Redis handles real-time ephemeral data (leaderboards, live sessions), while PostgreSQL persists long-term data.
+
+---
+
+### Entity Relationship Overview
+
+**Core Entities:**
+- `User` — registered learner or player.
+- `Quiz` — defines metadata for a quiz session (e.g., topic, difficulty, duration).
+- `Question` — represents a question belonging to a quiz or shared question bank.
+- `QuizSession` — a live or historical quiz run.
+- `SessionParticipant` — links users to sessions, tracking scores.
+- `AnswerSubmission` — records each user’s answer attempt (for auditing, analytics).
+
+---
+
+### Database Schema (Prisma-style)
+
+```prisma
+model User {
+  id              String    @id @default(cuid())
+  username        String    @unique
+  email           String    @unique
+  passwordHash    String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  sessions        SessionParticipant[]
+  createdQuizzes  Quiz[]    @relation("QuizCreator")
+}
+
+model Quiz {
+  id              String    @id @default(cuid())
+  title           String
+  description     String?
+  topic           String
+  difficulty      String     // e.g., easy | medium | hard
+  timeLimit       Int        // seconds
+  createdById     String
+  createdAt       DateTime   @default(now())
+
+  // Relations
+  createdBy       User       @relation("QuizCreator", fields: [createdById], references: [id])
+  questions       Question[]
+  sessions        QuizSession[]
+}
+
+model Question {
+  id              String    @id @default(cuid())
+  quizId          String?
+  content         String
+  options         String[]  // multiple choice options
+  correctAnswer   String
+  explanation     String?
+  type            String     // e.g., multiple-choice, fill-in, match
+  createdAt       DateTime   @default(now())
+
+  // Relations
+  quiz            Quiz?      @relation(fields: [quizId], references: [id])
+}
+
+model QuizSession {
+  id              String    @id @default(cuid())
+  quizId          String
+  startTime       DateTime  @default(now())
+  endTime         DateTime?
+  status          String     // pending | active | finished
+
+  // Relations
+  quiz            Quiz       @relation(fields: [quizId], references: [id])
+  participants    SessionParticipant[]
+  submissions     AnswerSubmission[]
+}
+
+model SessionParticipant {
+  id              String    @id @default(cuid())
+  userId          String
+  sessionId       String
+  score           Int        @default(0)
+  rank            Int?
+  joinedAt        DateTime   @default(now())
+  lastActivityAt  DateTime   @default(now())
+
+  // Relations
+  user            User       @relation(fields: [userId], references: [id])
+  session         QuizSession @relation(fields: [sessionId], references: [id])
+  submissions     AnswerSubmission[]
+}
+
+model AnswerSubmission {
+  id              String    @id @default(cuid())
+  sessionId       String
+  userId          String
+  questionId      String
+  selectedAnswer  String
+  isCorrect       Boolean
+  submittedAt     DateTime   @default(now())
+
+  // Relations
+  session         QuizSession @relation(fields: [sessionId], references: [id])
+  user            User        @relation(fields: [userId], references: [id])
+  question        Question    @relation(fields: [questionId], references: [id])
+}
+
+```
 ---
 
 ## 13. Appendix — Sample event definitions (AsyncAPI style simplified)
@@ -357,217 +501,81 @@ For each significant AI‑assisted deliverable, document the following:
 
 ---
 
-*End of Part 1 design doc. Use this document as the canonical system design to include in your challenge submission. If you want, I can now:*
+## 14. Suggested Project Folder Structure
 
-1. Convert the ASCII architecture into a Mermaid diagram or a PNG for the video and docs.
-2. Start Part 2: scaffold the real‑time server (TypeScript + Socket.IO + Redis) and provide AI collaboration annotations.
-3. Produce the `AI_CONTRIBUTION.md` template and example prompts to include in your repo.
-
-*Choose one of those and I will proceed.*
+This project follows a **monorepo architecture** using **Docker Compose** for local orchestration.  
+Each service (frontend, realtime server, leaderboard service, scoring engine) is **independent** — no shared internal code — to ensure modularity, service isolation, and simpler scaling/deployment.
 
 ---
 
-## Part 2 — Implementation: Scaffolding the Real‑time Server (TypeScript + Socket.IO + Redis)
+### Suggested Folder Layout Overview
 
-> This section provides a runnable scaffold, file list, and AI‑collaboration annotations that you can use as the starting point for Part 2 implementation. It focuses on the Real‑time server (handling joins, submits, scoring, and leaderboard updates). Other components (DB, auth) are mocked for the demo.
+```bash
+Real-Time-Vocabulary-Quiz/
+├── docker-compose.yml          # Orchestrates all services in local dev
+├── .env                        # Environment variables (shared configs)
+├── README.md                   # Root documentation
+├── docs/                       # System design, AI collaboration logs, diagrams
 
-### Goals for the scaffold
+├── frontend/                   # Client Web App (React + Vite)
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── src/
+│   │   ├── main.tsx            # App entrypoint
+│   │   ├── App.tsx             # Router and layout
+│   │   ├── components/
+│   │   ├── pages/
+│   │   ├── hooks/
+│   │   └── services/           # REST + WebSocket clients
+│   └── public/
 
-* WebSocket server (Socket.IO) in TypeScript
-* Redis-backed ephemeral state (leaderboard using sorted sets)
-* Events: `join`, `submitAnswer`, server emits `answerResult`, `scoreUpdate`, `leaderboardSnapshot`
-* Simple mocked auth and quiz/session validation for demo
-* AI collaboration annotations included as comments and a sample `AI_CONTRIBUTION.md` entry.
+├── realtime-server/            # Real-time backend (Node.js + Socket.IO)
+│   ├── package.json
+│   ├── src/
+│   │   ├── index.ts            # Server bootstrap
+│   │   ├── sockets/            # Socket.IO event handlers
+│   │   ├── redis/              # Pub/Sub integration
+│   │   ├── services/
+│   │   │   ├── quizService.ts
+│   │   │   └── scoreService.ts
+│   │   ├── middlewares/
+│   │   └── utils/
+│   └── tests/
 
----
+├── leaderboard-service/        # Leaderboard microservice
+│   ├── package.json
+│   ├── src/
+│   │   ├── index.ts
+│   │   ├── redis/
+│   │   ├── controllers/
+│   │   ├── routes/
+│   │   └── services/
+│   └── tests/
 
-### Files included (suggested)
+├── scoring-engine/             # Isolated service for scoring logic
+│   ├── package.json
+│   ├── src/
+│   │   ├── index.ts
+│   │   ├── scoring/
+│   │   │   ├── rules/
+│   │   │   ├── calculators/
+│   │   │   └── utils/
+│   │   ├── redis/
+│   │   └── api/
+│   └── tests/
 
-* `server/`
+├── database/                   # Prisma + migration setup
+│   ├── schema.prisma
+│   ├── migrations/
+│   ├── seed.ts
+│   └── docker/
+│       └── init.sql
 
-  * `package.json`
-  * `tsconfig.json`
-  * `src/index.ts` — main server
-  * `src/scoring.ts` — scoring logic (unit-tested)
-  * `src/redisClient.ts` — minimal Redis wrapper
-  * `src/types.ts` — shared types/interfaces
-  * `src/mockAuth.ts` — mock auth and quiz store
-  * `tests/scoring.test.ts` — unit tests for scoring
-  * `README.md` — run instructions
-
-* `AI_CONTRIBUTION.md` — documents AI usage, prompts, and verification steps (template)
-
----
-
-### Key code excerpts (explanatory — full code added to repository when you scaffold locally)
-
-**src/index.ts (high-level behavior)**
-
-```ts
-// AI-ASSISTED: Initial WebSocket server skeleton generated with GitHub Copilot and refined manually.
-import express from 'express';
-import http from 'http';
-import { Server } from 'socket.io';
-import { createRedisClient, getLeaderboardTopN, updateUserScore } from './redisClient';
-import { calculateScore } from './scoring';
-import { validateToken, getQuizById } from './mockAuth';
-
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
-
-const redis = createRedisClient();
-
-io.on('connection', (socket) => {
-  socket.on('join', async (payload, ack) => {
-    try {
-      const { sessionId, token, userId } = payload;
-      const user = await validateToken(token, userId); // mock
-      const quiz = await getQuizById(sessionId); // mock
-      if (!user || !quiz) return ack({ success: false, reason: 'unauthorized or session not found' });
-
-      socket.join(`session:${sessionId}`);
-      // initialize user score in redis if not exists
-      await updateUserScore(sessionId, userId, 0, 'init');
-      const top = await getLeaderboardTopN(sessionId, 10);
-      ack({ success: true, sessionState: { leaderboardTopN: top } });
-    } catch (err) {
-      ack({ success: false, reason: 'server_error' });
-    }
-  });
-
-  socket.on('submitAnswer', async (payload, ack) => {
-    try {
-      const { sessionId, questionId, answer, userId, clientTs } = payload;
-      // For demo, validate minimally
-      const points = await calculateScore({ sessionId, questionId, answer, clientTs });
-      const newScore = await updateUserScore(sessionId, userId, points, 'add');
-      // broadcast score update to session room
-      io.to(`session:${sessionId}`).emit('scoreUpdate', { userId, newScore });
-      const top = await getLeaderboardTopN(sessionId, 10);
-      io.to(`session:${sessionId}`).emit('leaderboardSnapshot', { topN: top });
-      ack({ success: true, awardedPoints: points, newScore });
-    } catch (err) {
-      ack({ success: false });
-    }
-  });
-});
-
-server.listen(3000, () => console.log('RT Server listening on 3000'));
-```
-
-**src/scoring.ts (unit-testable)**
-
-```ts
-// AI-ASSISTED: Copilot suggested baseline time-bonus formula; I reviewed and modified thresholds and tests.
-export function calculateScore({ correct, timeTakenMs, streak }: { correct: boolean; timeTakenMs: number; streak: number; }) {
-  if (!correct) return 0;
-  const base = 100;
-  // time bonus: faster answers get bonus up to +50
-  const maxTimeBonus = 50;
-  const timeWindow = 20000; // 20s
-  const normalized = Math.max(0, (timeWindow - Math.min(timeTakenMs, timeWindow)) / timeWindow);
-  const timeBonus = Math.round(normalized * maxTimeBonus);
-  const streakBonus = Math.min(100, streak * 10);
-  return base + timeBonus + streakBonus;
-}
-```
-
-**src/redisClient.ts (leaderboard helpers)**
-
-```ts
-// Minimal Redis helper using ioredis
-import Redis from 'ioredis';
-const redis = new Redis();
-
-export function createRedisClient() { return redis; }
-
-export async function updateUserScore(sessionId: string, userId: string, deltaOrValue: number, mode: 'add'|'init') {
-  const leaderboardKey = `leaderboard:${sessionId}`;
-  if (mode === 'init') {
-    const exists = await redis.zscore(leaderboardKey, userId);
-    if (exists === null) await redis.zadd(leaderboardKey, 0, userId);
-    return 0;
-  }
-  // add delta
-  const newScore = await redis.zincrby(leaderboardKey, deltaOrValue, userId);
-  return Number(newScore);
-}
-
-export async function getLeaderboardTopN(sessionId: string, n = 10) {
-  const leaderboardKey = `leaderboard:${sessionId}`;
-  const res = await redis.zrevrange(leaderboardKey, 0, n - 1, 'WITHSCORES');
-  // convert to [{ userId, score }]
-  const out: Array<{ userId: string; score: number }>=[];
-  for (let i = 0; i < res.length; i += 2) {
-    out.push({ userId: res[i], score: Number(res[i + 1]) });
-  }
-  return out;
-}
+└── infra/
+    ├── redis/                  # Redis Docker configs
+    ├── postgres/               # PostgreSQL Docker configs
+    ├── nginx/                  # Optional reverse proxy for local routing
+    └── monitoring/             # Future: Prometheus/Grafana configs
 ```
 
 ---
-
-### Running locally (quickstart)
-
-1. Install Redis (or run with `docker run -p 6379:6379 redis:7`).
-2. `cd server && npm install`
-3. `npm run build && npm start`
-4. Open a small demo client (or use the included `scripts/simulateClients.js`) to connect and exercise events.
-
----
-
-### Tests
-
-* `tests/scoring.test.ts` contains unit tests for `calculateScore` covering: correct vs incorrect, time extremes (very fast, very slow), streak effects, and boundary cases. Run with `npm test` (Jest).
-
----
-
-### AI_CONTRIBUTION.md (template)
-
-```
-# AI Contribution Log
-
-## Design Phase
-- Tool: ChatGPT (gpt-4o)
-- Task: Generate architecture options and sequence diagrams
-- Prompt: ...
-- Verification: Cross-checked docs and benchmarks; manual review.
-
-## Implementation Phase
-- Tool: GitHub Copilot, ChatGPT
-- Task: Generated initial Socket.IO server scaffold and Redis helper functions.
-- Prompt (example): "Create a TypeScript Socket.IO server that supports join and submitAnswer events and updates a Redis sorted set leaderboard." 
-- AI-assisted files: src/index.ts (initial skeleton), src/redisClient.ts (helpers), parts of src/scoring.ts
-- What I changed after AI output: added auth checks, error handling, unit tests, and adjusted time-bonus math.
-- Verification steps:
-  - Unit tests for scoring
-  - Integration test with local redis and 50 simulated clients
-  - Code review and linting
-  - Dependency vulnerability scan
-```
-
----
-
-### Notes on Verification and Testing (important — include in your video)
-
-* Show unit test runs for `scoring.ts` in the video.
-* Show a short live demo: run the server, start a few simulated clients connecting with different userIds, submit answers, and show leaderboard updates.
-* For load testing: prepare a `k6` or Node script that spins N websocket clients and verifies that leaderboard totals match expected sums (this demonstrates correctness under concurrency).
-
----
-
-## What I added to this doc now
-
-* Scaffolding plan & file list for Part 2.
-* Key code excerpts with AI collaboration comments.
-* Run & test instructions.
-* `AI_CONTRIBUTION.md` template and verification checklist.
-
-If you'd like, I can now:
-
-A. Generate the full code files in the canvas (single additional code file) so you can copy them.
-B. Create runnable artifacts using `python_user_visible` to generate files and a ZIP for download.
-C. Produce a short demo script that simulates many clients (k6 or Node) and include results analysis.
-
-I'll proceed with option A (generate full code files in the canvas as a single code document) unless you prefer B or C.

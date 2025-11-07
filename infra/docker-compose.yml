@@ -1,0 +1,64 @@
+services:
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  scoring-engine:
+    build:
+      context: ../scoring-engine
+    environment:
+      - SCORING_ENGINE_PORT=5001
+    ports:
+      - "5001:5001"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  leaderboard-service:
+    build:
+      context: ../leaderboard-service
+    environment:
+      - LEADERBOARD_SERVICE_PORT=5002
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "5002:5002"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  realtime-server:
+    build:
+      context: ../realtime-server
+    environment:
+      - RT_SERVER_PORT=4000
+      - SCORING_ENGINE_URL=http://scoring-engine:5001
+      - LEADERBOARD_SERVICE_URL=http://leaderboard-service:5002
+    ports:
+      - "4000:4000"
+    depends_on:
+      scoring-engine:
+        condition: service_started
+      leaderboard-service:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ../frontend
+    environment:
+      - VITE_REALTIME_URL=http://realtime-server:4000
+    ports:
+      - "5173:80"
+    depends_on:
+      realtime-server:
+        condition: service_started
+
+networks:
+  default:
+    name: quiz-network
+
