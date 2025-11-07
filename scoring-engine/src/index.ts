@@ -17,11 +17,62 @@ type ScoreResponse = {
 
 const PORT = Number(process.env.SCORING_ENGINE_PORT ?? 5001);
 
-const QUESTIONS: Record<string, { answer: string; difficulty: 'easy' | 'medium' | 'hard' }> = {
-  'vocab-1': { answer: 'serendipity', difficulty: 'medium' },
-  'vocab-2': { answer: 'ephemeral', difficulty: 'medium' },
-  'vocab-3': { answer: 'gregarious', difficulty: 'easy' },
-  'vocab-4': { answer: 'aberration', difficulty: 'hard' },
+type QuestionDefinition = {
+  prompt: string;
+  options: string[];
+  answer: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+};
+
+const QUESTIONS: Record<string, QuestionDefinition> = {
+  'vocab-1': {
+    prompt: 'Which word describes discovering something valuable by accident?',
+    options: ['Somber', 'Serendipity', 'Discord', 'Candor'],
+    answer: 'Serendipity',
+    difficulty: 'medium',
+  },
+  'vocab-2': {
+    prompt: 'Select the word that means lasting for a very short time.',
+    options: ['Ephemeral', 'Robust', 'Tenacious', 'Lucid'],
+    answer: 'Ephemeral',
+    difficulty: 'medium',
+  },
+  'vocab-3': {
+    prompt: 'Choose the word that means sociable and fond of company.',
+    options: ['Austere', 'Furtive', 'Gregarious', 'Vigilant'],
+    answer: 'Gregarious',
+    difficulty: 'easy',
+  },
+  'vocab-4': {
+    prompt: 'Identify the word that refers to a departure from what is normal or expected.',
+    options: ['Aberration', 'Dogma', 'Paragon', 'Levity'],
+    answer: 'Aberration',
+    difficulty: 'hard',
+  },
+  'vocab-5': {
+    prompt: 'Which word best describes someone who speaks persuasively and fluently?',
+    options: ['Obstinate', 'Eloquent', 'Opaque', 'Stoic'],
+    answer: 'Eloquent',
+    difficulty: 'easy',
+  },
+  'vocab-6': {
+    prompt: 'Select the word that means to make something bad or unsatisfactory better.',
+    options: ['Ameliorate', 'Aggravate', 'Vacillate', 'Illuminate'],
+    answer: 'Ameliorate',
+    difficulty: 'medium',
+  },
+  'vocab-7': {
+    prompt: 'Choose the word that means stubbornly refusing to change one’s opinion.',
+    options: ['Obdurate', 'Veracious', 'Altruistic', 'Mercurial'],
+    answer: 'Obdurate',
+    difficulty: 'hard',
+  },
+  'vocab-8': {
+    prompt: 'Which word refers to the ability to make good judgments quickly?',
+    options: ['Acumen', 'Apathy', 'Deference', 'Penury'],
+    answer: 'Acumen',
+    difficulty: 'medium',
+  },
 };
 
 const DIFFICULTY_BONUS: Record<'easy' | 'medium' | 'hard', number> = {

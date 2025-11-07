@@ -26,6 +26,10 @@ import {
   Divider,
   IconButton,
   useTheme,
+  FormLabel,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
 } from '@mui/material';
 import { Brightness4, Brightness7 } from '@mui/icons-material';
 import { ColorModeContext } from './main';
@@ -45,12 +49,79 @@ type LeaderboardPayload = {
 
 const REALTIME_URL = import.meta.env.VITE_REALTIME_URL ?? 'http://localhost:4000';
 
+type QuestionDefinition = {
+  id: string;
+  prompt: string;
+  options: string[];
+  answer: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+};
+
+const QUESTIONS: QuestionDefinition[] = [
+  {
+    id: 'vocab-1',
+    prompt: 'Which word describes discovering something valuable by accident?',
+    options: ['Somber', 'Serendipity', 'Discord', 'Candor'],
+    answer: 'Serendipity',
+    difficulty: 'medium',
+  },
+  {
+    id: 'vocab-2',
+    prompt: 'Select the word that means lasting for a very short time.',
+    options: ['Ephemeral', 'Robust', 'Tenacious', 'Lucid'],
+    answer: 'Ephemeral',
+    difficulty: 'medium',
+  },
+  {
+    id: 'vocab-3',
+    prompt: 'Choose the word that means sociable and fond of company.',
+    options: ['Austere', 'Furtive', 'Gregarious', 'Vigilant'],
+    answer: 'Gregarious',
+    difficulty: 'easy',
+  },
+  {
+    id: 'vocab-4',
+    prompt: 'Identify the word that refers to a departure from what is normal or expected.',
+    options: ['Aberration', 'Dogma', 'Paragon', 'Levity'],
+    answer: 'Aberration',
+    difficulty: 'hard',
+  },
+  {
+    id: 'vocab-5',
+    prompt: 'Which word best describes someone who speaks persuasively and fluently?',
+    options: ['Obstinate', 'Eloquent', 'Opaque', 'Stoic'],
+    answer: 'Eloquent',
+    difficulty: 'easy',
+  },
+  {
+    id: 'vocab-6',
+    prompt: 'Select the word that means to make something bad or unsatisfactory better.',
+    options: ['Ameliorate', 'Aggravate', 'Vacillate', 'Illuminate'],
+    answer: 'Ameliorate',
+    difficulty: 'medium',
+  },
+  {
+    id: 'vocab-7',
+    prompt: 'Choose the word that means stubbornly refusing to change one’s opinion.',
+    options: ['Obdurate', 'Veracious', 'Altruistic', 'Mercurial'],
+    answer: 'Obdurate',
+    difficulty: 'hard',
+  },
+  {
+    id: 'vocab-8',
+    prompt: 'Which word refers to the ability to make good judgments quickly?',
+    options: ['Acumen', 'Apathy', 'Deference', 'Penury'],
+    answer: 'Acumen',
+    difficulty: 'medium',
+  },
+];
+
 // AI-ASSISTED: Hook structure and socket lifecycle drafted with AI pair-programming, refined manually for state handling.
 export default function App() {
   const [quizId, setQuizId] = useState('demo-quiz');
   const [userId, setUserId] = useState<string>(() => crypto.randomUUID());
   const [username, setUsername] = useState('Player 1');
-  const [questionId, setQuestionId] = useState('vocab-1');
+  const [questionId, setQuestionId] = useState(QUESTIONS[0]?.id ?? 'vocab-1');
   const [answer, setAnswer] = useState('');
   const [status, setStatus] = useState('Not connected');
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -66,6 +137,11 @@ export default function App() {
   const socket = useMemo(() => {
     return io(REALTIME_URL, { autoConnect: false });
   }, []);
+
+  const selectedQuestion = useMemo(
+    () => QUESTIONS.find((question) => question.id === questionId) ?? QUESTIONS[0],
+    [questionId]
+  );
 
   useEffect(() => {
     socketRef.current = socket;
@@ -114,6 +190,10 @@ export default function App() {
     event.preventDefault();
     const client = socketRef.current;
     if (!client) return;
+    if (!answer) {
+      setLastFeedback('Please select an answer option before submitting.');
+      return;
+    }
 
     client.emit(
       'submit_answer',
@@ -141,7 +221,7 @@ export default function App() {
     setLeaderboard([]);
     setUserScore(0);
     setAnswer('');
-    setQuestionId('vocab-1');
+    setQuestionId(QUESTIONS[0]?.id ?? 'vocab-1');
 
     if (client?.connected) {
       setStatus('Connected');
@@ -187,7 +267,12 @@ export default function App() {
           leaderboard={leaderboard}
           userId={userId}
           lastFeedback={lastFeedback}
-          onQuestionIdChange={(value) => setQuestionId(value)}
+          question={selectedQuestion}
+          questions={QUESTIONS}
+          onQuestionIdChange={(value) => {
+            setQuestionId(value);
+            setAnswer('');
+          }}
           onAnswerChange={(value) => setAnswer(value)}
           onSubmit={handleSubmitAnswer}
         />
@@ -279,6 +364,8 @@ type MainQuizScreenProps = {
   leaderboard: LeaderboardEntry[];
   userId: string;
   lastFeedback: string;
+  question?: QuestionDefinition;
+  questions: QuestionDefinition[];
   onQuestionIdChange: (value: string) => void;
   onAnswerChange: (value: string) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
@@ -292,10 +379,14 @@ function MainQuizScreen({
   leaderboard,
   userId,
   lastFeedback,
+  question,
+  questions,
   onQuestionIdChange,
   onAnswerChange,
   onSubmit,
 }: MainQuizScreenProps) {
+  const activeQuestion = question ?? questions[0];
+
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
       <Grid container spacing={3}>
@@ -328,20 +419,31 @@ function MainQuizScreen({
                       label="Question ID"
                       onChange={(event) => onQuestionIdChange(event.target.value as string)}
                     >
-                      <MenuItem value="vocab-1">vocab-1</MenuItem>
-                      <MenuItem value="vocab-2">vocab-2</MenuItem>
-                      <MenuItem value="vocab-3">vocab-3</MenuItem>
-                      <MenuItem value="vocab-4">vocab-4</MenuItem>
+                      {questions.map((item) => (
+                        <MenuItem key={item.id} value={item.id}>
+                          {item.id}
+                        </MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
-                  <TextField
-                    label="Answer"
-                    value={answer}
-                    onChange={(event) => onAnswerChange(event.target.value)}
-                    required
-                    fullWidth
-                  />
-                  <Button type="submit" variant="contained" color="secondary" size="large">
+                  <Box>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }} gutterBottom>
+                      {activeQuestion?.prompt}
+                    </Typography>
+                    <FormControl component="fieldset" fullWidth>
+                      <FormLabel component="legend">Choose the best answer</FormLabel>
+                      <RadioGroup
+                        value={answer}
+                        onChange={(event) => onAnswerChange(event.target.value)}
+                        name="answer-options"
+                      >
+                        {activeQuestion?.options.map((option) => (
+                          <FormControlLabel key={option} value={option} control={<Radio />} label={option} />
+                        ))}
+                      </RadioGroup>
+                    </FormControl>
+                  </Box>
+                  <Button type="submit" variant="contained" color="secondary" size="large" disabled={!answer}>
                     Submit Answer
                   </Button>
                 </Stack>
