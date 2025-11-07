@@ -27,6 +27,23 @@ docker compose up --build
 
 Frontend is served at `http://localhost:5173` (proxying to the real-time server on port `4000`).
 
+### Frontend Hot Reload (Docker)
+
+To work on the React client with live reload inside Docker:
+
+```bash
+cd infra
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build frontend
+```
+
+This uses the `dev` stage from the frontend Dockerfile, mounts your local source for instant refresh, and loads environment variables from `frontend/docker.env.development` (including `VITE_REALTIME_URL`). The app is available at `http://localhost:5173`, still connecting to the Socket.IO server on port `4000`.
+
+To stop the dev container:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+```
+
 ### Running Services Individually
 
 Each service exposes the usual Node scripts. Example:

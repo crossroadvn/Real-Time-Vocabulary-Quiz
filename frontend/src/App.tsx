@@ -56,6 +56,7 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [userScore, setUserScore] = useState(0);
   const [lastFeedback, setLastFeedback] = useState('');
+  const [isJoined, setIsJoined] = useState(false);
 
   const theme = useTheme();
   const colorMode = useContext(ColorModeContext);
@@ -104,6 +105,7 @@ export default function App() {
           setUserScore(response.leaderboard.userScore);
         }
         setStatus('Joined quiz');
+        setIsJoined(true);
       }
     );
   }
@@ -132,6 +134,24 @@ export default function App() {
     );
   }
 
+  function handleLeave() {
+    const client = socketRef.current;
+    setIsJoined(false);
+    setLastFeedback('');
+    setLeaderboard([]);
+    setUserScore(0);
+    setAnswer('');
+    setQuestionId('vocab-1');
+
+    if (client?.connected) {
+      setStatus('Connected');
+    } else if (client) {
+      setStatus('Disconnected');
+    } else {
+      setStatus('Not connected');
+    }
+  }
+
   const connectionColor: 'default' | 'success' | 'warning' =
     status === 'Connected' ? 'success' : status === 'Joined quiz' ? 'success' : status === 'Disconnected' ? 'warning' : 'default';
 
@@ -145,6 +165,12 @@ export default function App() {
           <Stack direction="row" spacing={2} alignItems="center">
             <Chip label={`Score: ${userScore}`} color="default" variant="outlined" />
             <Chip label={status} color={connectionColor} />
+            {isJoined && <Chip label={username} color="primary" variant="outlined" />}
+            {isJoined && (
+              <Button color="inherit" onClick={handleLeave} sx={{ textTransform: 'none' }}>
+                Leave Quiz
+              </Button>
+            )}
             <IconButton color="inherit" onClick={colorMode.toggleColorMode} aria-label="toggle dark mode">
               {theme.palette.mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
             </IconButton>
@@ -152,50 +178,147 @@ export default function App() {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <Paper elevation={3} sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Join Quiz
-              </Typography>
-              <Box component="form" onSubmit={handleJoin} noValidate>
-                <Stack spacing={2}>
-                  <TextField
-                    label="Quiz ID"
-                    value={quizId}
-                    onChange={(e) => setQuizId(e.target.value)}
-                    required
-                    fullWidth
-                  />
-                  <TextField
-                    label="User ID"
-                    value={userId}
-                    onChange={(e) => setUserId(e.target.value)}
-                    required
-                    fullWidth
-                  />
-                  <TextField
-                    label="Username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                    fullWidth
-                  />
-                  <Button type="submit" variant="contained" size="large">
-                    Join
-                  </Button>
-                </Stack>
-              </Box>
-            </Paper>
-          </Grid>
+      {isJoined ? (
+        <MainQuizScreen
+          quizId={quizId}
+          questionId={questionId}
+          answer={answer}
+          username={username}
+          leaderboard={leaderboard}
+          userId={userId}
+          lastFeedback={lastFeedback}
+          onQuestionIdChange={(value) => setQuestionId(value)}
+          onAnswerChange={(value) => setAnswer(value)}
+          onSubmit={handleSubmitAnswer}
+        />
+      ) : (
+        <JoinQuizScreen
+          quizId={quizId}
+          userId={userId}
+          username={username}
+          onQuizIdChange={(value) => setQuizId(value)}
+          onUserIdChange={(value) => setUserId(value)}
+          onUsernameChange={(value) => setUsername(value)}
+          onSubmit={handleJoin}
+        />
+      )}
+    </Box>
+  );
+}
 
-          <Grid item xs={12} md={6}>
-            <Paper elevation={3} sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Submit Answer
-              </Typography>
-              <Box component="form" onSubmit={handleSubmitAnswer} noValidate>
+type JoinQuizScreenProps = {
+  quizId: string;
+  userId: string;
+  username: string;
+  onQuizIdChange: (value: string) => void;
+  onUserIdChange: (value: string) => void;
+  onUsernameChange: (value: string) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+};
+
+function JoinQuizScreen({
+  quizId,
+  userId,
+  username,
+  onQuizIdChange,
+  onUserIdChange,
+  onUsernameChange,
+  onSubmit,
+}: JoinQuizScreenProps) {
+  return (
+    <Container maxWidth="sm" sx={{ py: { xs: 6, md: 10 } }}>
+      <Paper elevation={6} sx={{ p: { xs: 3, sm: 4 } }}>
+        <Stack spacing={3}>
+          <Box>
+            <Typography variant="h4" component="h2" gutterBottom>
+              Join a Quiz
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Enter the quiz details below to start playing in real time.
+            </Typography>
+          </Box>
+          <Box component="form" onSubmit={onSubmit} noValidate>
+            <Stack spacing={2}>
+              <TextField
+                label="Quiz ID"
+                value={quizId}
+                onChange={(event) => onQuizIdChange(event.target.value)}
+                required
+                fullWidth
+              />
+              <TextField
+                label="User ID"
+                value={userId}
+                onChange={(event) => onUserIdChange(event.target.value)}
+                required
+                fullWidth
+              />
+              <TextField
+                label="Username"
+                value={username}
+                onChange={(event) => onUsernameChange(event.target.value)}
+                required
+                fullWidth
+              />
+              <Button type="submit" variant="contained" size="large">
+                Join Quiz
+              </Button>
+            </Stack>
+          </Box>
+        </Stack>
+      </Paper>
+    </Container>
+  );
+}
+
+type MainQuizScreenProps = {
+  quizId: string;
+  questionId: string;
+  answer: string;
+  username: string;
+  leaderboard: LeaderboardEntry[];
+  userId: string;
+  lastFeedback: string;
+  onQuestionIdChange: (value: string) => void;
+  onAnswerChange: (value: string) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+};
+
+function MainQuizScreen({
+  quizId,
+  questionId,
+  answer,
+  username,
+  leaderboard,
+  userId,
+  lastFeedback,
+  onQuestionIdChange,
+  onAnswerChange,
+  onSubmit,
+}: MainQuizScreenProps) {
+  return (
+    <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={5}>
+          <Paper elevation={3} sx={{ p: 3, height: '100%' }}>
+            <Stack spacing={2}>
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Submit Answer
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Playing as{' '}
+                  <Box component="span" sx={{ fontWeight: 600 }}>
+                    {username}
+                  </Box>{' '}
+                  in quiz{' '}
+                  <Box component="span" sx={{ fontWeight: 600 }}>
+                    {quizId}
+                  </Box>
+                  .
+                </Typography>
+              </Box>
+              <Box component="form" onSubmit={onSubmit} noValidate>
                 <Stack spacing={2}>
                   <FormControl fullWidth>
                     <InputLabel id="question-select-label">Question ID</InputLabel>
@@ -203,7 +326,7 @@ export default function App() {
                       labelId="question-select-label"
                       value={questionId}
                       label="Question ID"
-                      onChange={(e) => setQuestionId(e.target.value as string)}
+                      onChange={(event) => onQuestionIdChange(event.target.value as string)}
                     >
                       <MenuItem value="vocab-1">vocab-1</MenuItem>
                       <MenuItem value="vocab-2">vocab-2</MenuItem>
@@ -214,7 +337,7 @@ export default function App() {
                   <TextField
                     label="Answer"
                     value={answer}
-                    onChange={(e) => setAnswer(e.target.value)}
+                    onChange={(event) => onAnswerChange(event.target.value)}
                     required
                     fullWidth
                   />
@@ -224,53 +347,53 @@ export default function App() {
                 </Stack>
               </Box>
               {lastFeedback && (
-                <Alert sx={{ mt: 2 }} severity={lastFeedback.startsWith('Correct') ? 'success' : 'info'}>
+                <Alert sx={{ mt: 1 }} severity={lastFeedback.startsWith('Correct') ? 'success' : 'info'}>
                   {lastFeedback}
                 </Alert>
               )}
-            </Paper>
-          </Grid>
-
-          <Grid item xs={12}>
-            <Paper elevation={3} sx={{ p: 3 }}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-                <Typography variant="h6">Leaderboard</Typography>
-                <Divider sx={{ flexGrow: 1, mx: 2 }} />
-              </Stack>
-              <TableContainer>
-                <Table size="medium">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Rank</TableCell>
-                      <TableCell>Player</TableCell>
-                      <TableCell align="right">Score</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {leaderboard.map((entry) => (
-                      <TableRow key={entry.userId} selected={entry.userId === userId} hover>
-                        <TableCell>{entry.rank}</TableCell>
-                        <TableCell>{entry.username}</TableCell>
-                        <TableCell align="right">{entry.score}</TableCell>
-                      </TableRow>
-                    ))}
-                    {leaderboard.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={3}>
-                          <Typography variant="body2" color="text.secondary">
-                            No scores yet. Join the quiz and submit your first answer!
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Paper>
-          </Grid>
+            </Stack>
+          </Paper>
         </Grid>
-      </Container>
-    </Box>
+        <Grid item xs={12} md={7}>
+          <Paper elevation={3} sx={{ p: 3 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+              <Typography variant="h6">Leaderboard</Typography>
+              <Divider sx={{ flexGrow: 1, mx: 2 }} />
+              <Chip label={`Quiz: ${quizId}`} variant="outlined" />
+            </Stack>
+            <TableContainer>
+              <Table size="medium">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Rank</TableCell>
+                    <TableCell>Player</TableCell>
+                    <TableCell align="right">Score</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {leaderboard.map((entry) => (
+                    <TableRow key={entry.userId} selected={entry.userId === userId} hover>
+                      <TableCell>{entry.rank}</TableCell>
+                      <TableCell>{entry.username}</TableCell>
+                      <TableCell align="right">{entry.score}</TableCell>
+                    </TableRow>
+                  ))}
+                  {leaderboard.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3}>
+                        <Typography variant="body2" color="text.secondary">
+                          No scores yet. Submit an answer to appear on the board.
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </Grid>
+      </Grid>
+    </Container>
   );
 }
 
