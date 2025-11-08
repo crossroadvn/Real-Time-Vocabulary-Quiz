@@ -56,6 +56,18 @@ npm run dev
 
 Ensure Redis is available locally at `redis://localhost:6379` when running services without Docker Compose.
 
+### Scoring Engine Tests
+
+The scoring engine ships with Vitest coverage for the request validator, answer comparator, and `/score` endpoint.
+
+```bash
+cd scoring-engine
+npm install
+npm test
+```
+
+Use `npm test -- --watch` for an interactive rerun loop while iterating on the service.
+
 ### Environment Variables
 
 - `RT_SERVER_PORT` (default `4000`)
